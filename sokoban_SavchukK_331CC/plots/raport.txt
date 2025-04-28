@@ -1,6 +1,0 @@
---------- REZUMAT STATISTICI (medii) ---------------
-# Hărţi analizate : 9
-# Config. algoritmi: 2
------------------------------------------------------
-LRTA*-base   |  medieTimp = 0.149 s   mediePaşi = 422
-SA-base      |  medieTimp = 0.928 s   mediePaşi = 3686

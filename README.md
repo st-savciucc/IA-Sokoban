@@ -1,5 +1,4 @@
 # Tema 1 – Sokoban  
-### Savchuk Kostiantyn · grupa 331CC
 
 > Acest fișier explică **instalarea**, **rularea minimă** cerută de fișa temei și opțiunile utile.
 
