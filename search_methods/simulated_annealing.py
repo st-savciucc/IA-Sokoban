@@ -1,5 +1,5 @@
 """
-Simulated Annealing pentru Sokoban (versiune generică).
+Simulated Annealing pt Sokoban
 """
 
 import math, random
@@ -15,27 +15,23 @@ class SimulatedAnnealing:
         self.max_steps = max_steps
         random.seed(seed)
 
-    # ------------------------------------------------------- neighbourhood logic
     def _random_action(self, state):
-        """Returnează o acțiune legală aleatoare (push SAU pull)."""
         acts = state.legal_actions()
         return random.choice(acts) if acts else None
 
     def _neighbour(self, state):
-        """Aplică 1 acțiune aleatoare și întoarce noua stare + acțiunea."""
         action = self._random_action(state)
         if action is None:
             return None, None
         new_state = state.apply(action)
         return new_state, action
 
-    # ------------------------------------------------------------- SA main loop
     def solve(self):
         current = self.initial_map
         best = current
         best_cost = self.h(current)
         T = self.T0
-        trajectory = []          # pentru reconstituirea drumului
+        trajectory = []         
 
         for step in range(self.max_steps):
             if current.is_goal():
@@ -43,7 +39,7 @@ class SimulatedAnnealing:
 
             neighbour, action = self._neighbour(current)
             if neighbour is None:
-                break            # dead‑end
+                break        
 
             delta = self.h(neighbour) - self.h(current)
             if delta < 0 or random.random() < math.exp(-delta / T):
@@ -54,7 +50,6 @@ class SimulatedAnnealing:
 
             T *= self.alpha
             if T < self.min_T:
-                T = self.T0       # “restart” ușor ca să evităm blocarea
+                T = self.T0      
 
-        # Dacă nu s‑a atins goal‑ul, întoarce cea mai bună încercare
-        return trajectory  # posibil nevalid – tratează în codul de evaluare
+        return trajectory 

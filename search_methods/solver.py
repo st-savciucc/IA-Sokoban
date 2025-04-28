@@ -1,10 +1,12 @@
 # search_methods/solver.py
 """
-solver.py – Adaptiv: LRTA*, Greedy (cu buget), Simulated Annealing
+solver.py – Adaptiv: LRTA*, Greedy (cu buget), Simulated Annealing (multi-restart)
 """
 
 from abc import ABC, abstractmethod
-import random, math, itertools
+import random
+import math
+import itertools
 
 from search_methods.lrta_star import LRTAStar
 from search_methods.heuristics import (
@@ -20,12 +22,11 @@ class Solver(ABC):
 
     @abstractmethod
     def solve(self):
-        """Returnează lista de stări Map care duc la soluție"""
         ...
 
 
 class LrtaStarSolver(Solver):
-    def __init__(self, map_obj, heuristic_fn, max_steps=500_000):
+    def __init__(self, map_obj, heuristic_fn, max_steps: int = 500_000):
         super().__init__(map_obj, heuristic_fn)
         self._solver = LRTAStar(self.map, self.heuristic)
         self._solver.max_steps = max_steps
@@ -35,14 +36,11 @@ class LrtaStarSolver(Solver):
 
 
 class GreedySolver(Solver):
-    """
-    Greedy best‑first search cu buget de mutări:
-    alege succesorul cu h minim, fără backtracking.
-    """
     def __init__(self, map_obj, heuristic_fn):
         super().__init__(map_obj, heuristic_fn)
+        self.last_steps = 0
 
-    def solve(self, max_steps=None):
+    def solve(self, max_steps: int | None = None):
         cur = self.map.copy()
         path = [cur]
         for step in itertools.count(1):
@@ -51,66 +49,80 @@ class GreedySolver(Solver):
             if cur.is_solved():
                 self.last_steps = step - 1
                 return path
-            succs = [s for s in cur.get_neighbours() if self.heuristic(s) < float('inf')]
+            succs = [s for s in cur.get_neighbours()
+                     if self.heuristic(s) < float('inf')]
             if not succs:
-                raise RuntimeError("GreedySolver: dead‑end")
+                raise RuntimeError("GreedySolver: dead-end")
             cur = min(succs, key=self.heuristic)
             path.append(cur)
 
 
 class SimulatedAnnealingSolver(Solver):
-    """
-    Simulated Annealing cu număr de iterații și Metropolis.
-    """
     def __init__(
-        self, map_obj, heuristic_fn,
-        T0=1000.0, alpha=0.995, min_T=1e-3,
-        max_steps=200_000, seed=0
+        self,
+        map_obj,
+        heuristic_fn,
+        T0: float = 2000.0,
+        alpha: float = 0.999,
+        min_T: float = 1e-4,
+        max_steps: int = 500_000,
+        restarts: int = 5,
+        seed: int = 0
     ):
         super().__init__(map_obj, heuristic_fn)
         self.T0 = T0
         self.alpha = alpha
         self.min_T = min_T
         self.max_steps = max_steps
+        self.restarts = restarts
         self.seed = seed
         self.last_steps = 0
 
     def solve(self):
-        random.seed(self.seed)
-        cur = self.map.copy()
-        path = [cur]
-        T = self.T0
-        steps = 0
+        best_path = []
+        best_len = -1
+        best_steps = 0
 
-        while T > self.min_T and steps < self.max_steps:
-            if cur.is_solved():
-                self.last_steps = steps
-                return path
-            neigh = random.choice(cur.get_neighbours())
-            if self.heuristic(neigh) == float('inf'):
-                steps += 1
+        for r in range(self.restarts):
+            random.seed(self.seed + r)
+            cur = self.map.copy()
+            path = [cur]
+            T = self.T0
+            steps = 0
+
+            while T > self.min_T and steps < self.max_steps:
+                if cur.is_solved():
+                    self.last_steps = steps
+                    return path
+                neigh = random.choice(cur.get_neighbours())
+                if self.heuristic(neigh) == float('inf'):
+                    steps += 1
+                    T *= self.alpha
+                    continue
+                delta = self.heuristic(neigh) - self.heuristic(cur)
+                if delta < 0 or math.exp(-delta / T) > random.random():
+                    cur = neigh
+                    path.append(cur)
                 T *= self.alpha
-                continue
-            delta = self.heuristic(neigh) - self.heuristic(cur)
-            if delta < 0 or math.exp(-delta / T) > random.random():
-                cur = neigh
-                path.append(cur)
-            T *= self.alpha
-            steps += 1
+                steps += 1
 
-        self.last_steps = steps
-        return path  # poate să nu fie soluție
+            if len(path) > best_len:
+                best_len = len(path)
+                best_path = path
+                best_steps = steps
+
+        self.last_steps = best_steps
+        return best_path
 
 
 class AdaptiveSolver(Solver):
-    """
-    Pipeline:
-      1) Greedy (buget redus)
-      2) LRTA* (backtracking)
-      3) Simulated Annealing (fallback)
-    """
-    def __init__(self, map_obj, heuristic_fn,
-                 greedy_budget=4000, lrta_budget=300_000):
+    def __init__(
+        self,
+        map_obj,
+        heuristic_fn,
+        greedy_budget: int = 4000,
+        lrta_budget: int = 300_000
+    ):
         super().__init__(map_obj, heuristic_fn)
         self.greedy_budget = greedy_budget
         self.lrta_budget = lrta_budget
@@ -119,24 +131,33 @@ class AdaptiveSolver(Solver):
         try:
             gs = GreedySolver(self.map, self.heuristic)
             states = gs.solve(max_steps=self.greedy_budget)
-            print(f"  AdaptiveSolver: solved greedy in {gs.last_steps} paşi")
+            print(f"  AdaptiveSolver: solved greedy in {gs.last_steps} pasi")
             return states
         except TimeoutError:
             print("  AdaptiveSolver: buget greedy epuizat, trec la LRTA*")
         except Exception:
-            print("  AdaptiveSolver: greedy a eşuat, trec la LRTA*")
+            print("  AdaptiveSolver: greedy a esuat, trec la LRTA*")
 
         try:
             lrta = LrtaStarSolver(self.map, self.heuristic, max_steps=self.lrta_budget)
             states = lrta.solve()
-            print(f"  AdaptiveSolver: solved LRTA* în {len(states)-1} paşi")
+            print(f"  AdaptiveSolver: solved LRTA* în {len(states)-1} pasi")
             return states
         except TimeoutError:
             print("  AdaptiveSolver: LRTA* timeout, trec la SA")
 
-        sa = SimulatedAnnealingSolver(self.map, self.heuristic, max_steps=200_000)
+        sa = SimulatedAnnealingSolver(
+            self.map,
+            self.heuristic,
+            T0=2000.0,
+            alpha=0.999,
+            min_T=1e-4,
+            max_steps=500_000,
+            restarts=5,
+            seed=0
+        )
         states = sa.solve()
-        print(f"  AdaptiveSolver: fallback SA după {sa.last_steps} iteratii")
+        print(f"  AdaptiveSolver: fallback SA dupa {sa.last_steps} iteratii")
         return states
 
 
@@ -160,6 +181,16 @@ def get_solver(
         return LrtaStarSolver(map_obj, heur_fn, max_steps or 500_000)
 
     if algorithm == 'sa':
-        return SimulatedAnnealingSolver(map_obj, heur_fn)
+        ms = max_steps or 500_000
+        return SimulatedAnnealingSolver(
+            map_obj,
+            heur_fn,
+            T0=2000.0,
+            alpha=0.999,
+            min_T=1e-4,
+            max_steps=ms,
+            restarts=5,
+            seed=0
+        )
 
     raise ValueError(f"Unknown algorithm: {algorithm}")

@@ -1,4 +1,4 @@
-#!/home/costel/Documents/UPB/labs/IA/Tema1/arhiva_tema/.venv/bin/python3
+#!/Users/mac/Documents/UPB/IA/IA-Sokoban/.venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys
